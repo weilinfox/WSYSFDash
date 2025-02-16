@@ -29,9 +29,13 @@ dmrids = {}
 logging.basicConfig(format='%(asctime)s %(levelname)s %(message)s', level=logging.INFO)
 conv = Ansi2HTMLConverter(inline=True)
 
-async def view_log(websocket, path):
+async def view_log(websocket, path=None):
     global config
     global dmrids
+
+    # path argument of connection handlers is "unnecessary since 10.1 and deprecated in 13.0
+    if path is None:
+        path = websocket.request.path
     logging.info('Connected, remote={}, path={}'.format(websocket.remote_address, path))
 
     try:
@@ -175,7 +179,7 @@ def log_close(websocket, path, exception=None):
     logging.info(message)
 
 
-def websocketserver():
+async def websocketserver():
     start_server = None
     if (config['DEFAULT']['Ssl'] == "True"):
         ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
@@ -183,17 +187,15 @@ def websocketserver():
         key_pem = config['DEFAULT']['SslKey']
 
         ssl_context.load_cert_chain(cert_pem, key_pem)
-        start_server = websockets.serve(view_log, config['DEFAULT']['Host'], config['DEFAULT']['Port'], ssl=ssl_context)
+        start_server = await websockets.serve(view_log, config['DEFAULT']['Host'], config['DEFAULT']['Port'], ssl=ssl_context)
     else:
-        start_server = websockets.serve(view_log, config['DEFAULT']['Host'], config['DEFAULT']['Port'])
+        start_server = await websockets.serve(view_log, config['DEFAULT']['Host'], config['DEFAULT']['Port'])
 
-    asyncio.get_event_loop().run_until_complete(start_server)
-    asyncio.get_event_loop().run_forever()
-
+    await start_server.wait_closed()
 
 def main():
     logging.info("Starting Websocketserver")
-    websocketserver()
+    asyncio.run(websocketserver())
 
 
 if __name__ == '__main__':
